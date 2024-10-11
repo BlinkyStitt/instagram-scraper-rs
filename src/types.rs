@@ -2,7 +2,7 @@
 //!
 //! Defines the return types for the scraper
 
-use std::time::SystemTime;
+use std::{collections::HashMap, time::SystemTime};
 
 /// User post
 #[derive(Clone, Hash, Eq, PartialEq, Debug)]
@@ -65,7 +65,7 @@ pub struct StorySource {
 }
 
 /// Describes the web profile query response
-#[derive(Clone, Hash, Eq, PartialEq, Debug, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Debug, Deserialize)]
 pub struct User {
     pub biography: Option<String>,
     pub blocked_by_viewer: bool,
