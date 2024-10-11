@@ -92,7 +92,6 @@ pub struct User {
     pub highlight_reel_count: isize,
     pub id: String,
     pub is_business_account: bool,
-    pub is_eligible_to_view_account_transparency: bool,
     pub is_embeds_disabled: bool,
     pub is_guardian_of_viewer: bool,
     pub is_joined_recently: bool,
@@ -109,6 +108,8 @@ pub struct User {
     pub should_show_category: bool,
     pub should_show_public_contacts: bool,
     pub username: String,
+    #[serde(flatten)]
+    extra: HashMap<String, serde_json::Value>,
 }
 
 impl User {
