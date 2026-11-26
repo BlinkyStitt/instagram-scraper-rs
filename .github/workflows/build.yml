@@ -29,3 +29,8 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy -- -Dwarnings
+
+# Superseded PR validation must not hold runner capacity.
+concurrency:
+  group: pr-ci-build.yml-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
