@@ -1,43 +1,82 @@
 name: Coverage
-
-on: [push, pull_request]
-
 env:
   CARGO_TERM_COLOR: always
-
 jobs:
+  ci_changes:
+    name: Select validation paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run_validation: ${{ steps.paths.outputs.run_validation }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+    - id: paths
+      env:
+        GH_TOKEN: ${{ github.token }}
+        CI_INCLUDE_PATHS: '["**"]'
+        CI_IGNORE_PATHS: '[]'
+      run: python3 .github/scripts/ci_changes.py
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v2
-      - name: Setup nightly toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-      - name: Run tests (nightly)
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --lib --features github-ci --no-fail-fast
-        env:
-          RUST_LOG: trace
-          INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
-          INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
-          CARGO_INCREMENTAL: "0"
-          RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
-          RUSTDOCFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
-      - name: Coverage with grcov
-        id: coverage
-        uses: actions-rs/grcov@v0.1
-      - name: Coveralls
-        uses: coverallsapp/github-action@v1.1.1
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ${{ steps.coverage.outputs.report }}
+    - uses: actions/checkout@v2
+    - name: Setup nightly toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: Run tests (nightly)
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --lib --features github-ci --no-fail-fast
+      env:
+        RUST_LOG: trace
+        INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
+        INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
+        CARGO_INCREMENTAL: '0'
+        RUSTFLAGS: -Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests
+        RUSTDOCFLAGS: -Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests
+    - name: Coverage with grcov
+      id: coverage
+      uses: actions-rs/grcov@v0.1
+    - name: Coveralls
+      uses: coverallsapp/github-action@v1.1.1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        path-to-lcov: ${{ steps.coverage.outputs.report }}
+    needs:
+    - ci_changes
+    if: ${{ needs.ci_changes.outputs.run_validation == 'true' }}
+  ci_gate:
+    name: CI (coverage.yml)
+    if: ${{ !cancelled() }}
+    needs:
+    - ci_changes
+    - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+    - name: Verify validation contract
+      env:
+        CI_GATE_NEEDS: ${{ toJSON(needs) }}
+        CI_EXPECTED_JOBS: '["build"]'
+      run: 'python3 -m unittest discover -s .github/scripts -p test_ci_contract.py
 
-# Superseded PR validation must not hold runner capacity.
+        python3 .github/scripts/ci_gate.py'
 concurrency:
   group: pr-ci-coverage.yml-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
+'on':
+  push: null
+  pull_request:
+    paths:
+    - '**'
